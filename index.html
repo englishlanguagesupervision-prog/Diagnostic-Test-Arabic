@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحليل نتائج الاختبارات التشخيصية - مدارس البيارق الأهلية</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Cairo', sans-serif; background-color: #0c1322; color: #e2e8f0; }
+  .card-glow { 
+    background: rgba(19, 29, 49, 0.85); 
+    backdrop-filter: blur(12px); 
+    border: 1px solid rgba(255, 255, 255, 0.08); 
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4); 
+  }
+  .tab-btn { transition: all 0.25s ease; }
+  .tab-btn.active { 
+    background: linear-gradient(135deg, #059669 0%, #0d9488 100%); 
+    color: #ffffff !important; 
+    box-shadow: 0 0 18px rgba(13, 148, 136, 0.5); 
+  }
+  @media print {
+    body { background: white !important; color: black !important; }
+    .no-print { display: none !important; }
+    #diagnostic_card_modal { position: static !important; background: transparent !important; padding: 0 !important; }
+    #card_content_box { box-shadow: none !important; border: 1px solid #ccc !important; }
+  }
+</style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+  <!-- إشعار الحفظ -->
+  <div id="save_toast" class="fixed bottom-6 left-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl font-bold text-sm hidden flex items-center gap-2 border border-emerald-400/30 transition">
+    <span>✅</span> تم حفظ جميع التعديلات والبيانات بنجاح!
+  </div>
+
+  <!-- ترويسة اللوحة والشعار -->
+  <header class="mb-8 border-b border-slate-700/60 pb-6">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+      
+      <div class="flex items-center gap-4">
+        <!-- شعار مدارس البيارق الأهلية -->
+        <div class="bg-white p-2 rounded-2xl shadow-md border border-slate-700/40 flex items-center justify-center">
+          <img id="main_logo" src="logo.jpg" onerror="this.src='https://placehold.co/180x60/004d3d/ffffff?text=%D9%85%D8%AF%D8%A7%D8%B1%D8%B3+%D8%A7%D9%84%D8%A8%D9%8A%D8%A7%D8%B1%D9%82'" alt="شعار مدارس البيارق" class="h-14 w-auto max-w-[190px] object-contain">
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">إشراف اللغة العربية</span>
+            <span class="text-xs text-slate-400">الفصل الدراسي الأول 1448هـ / 1447هـ</span>
+          </div>
+          <h1 class="text-xl md:text-2xl font-extrabold text-white mt-1">
+            لوحة تحليل نتائج الاختبارات التشخيصية - مهارات اللغة العربية
+          </h1>
+          <p class="text-slate-400 text-sm mt-0.5">
+            مدارس البيارق الأهلية | إعداد وإشراف: <span class="text-amber-400 font-bold">أ/ صبحي الرفاعي</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- أزرار الإجراءات السريعة وحفظ التعديلات -->
+      <div class="flex flex-wrap items-center gap-2.5 no-print">
+        <button onclick="saveAndNotify()" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition flex items-center gap-1.5 border border-emerald-400/40">
+          <span>💾</span> حفظ التعديلات
+        </button>
+
+        <button onclick="document.getElementById('excel_files_input').click()" class="px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md transition flex items-center gap-1.5">
+          <span>📤</span> رفع ملفات الإكسل
+        </button>
+        <input type="file" id="excel_files_input" multiple accept=".xlsx, .xls" class="hidden" onchange="loadExcelFiles(event)">
+
+        <button onclick="openStudentModal()" class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold border border-amber-400/30 transition flex items-center gap-1.5">
+          <span>➕</span> إضافة طالب
+        </button>
+
+        <button onclick="exportCSV()" class="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-600 transition flex items-center gap-1">
+          <span>📥</span> تصدير Excel
+        </button>
+
+        <button onclick="window.print()" class="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-600 transition flex items-center gap-1">
+          <span>🖨</span> طباعة
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- بطاقات المؤشرات الرقمية (KPIs) -->
+  <div class="max-w-7xl mx-auto mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+    <div class="card-glow rounded-2xl p-5 border-l-4 border-l-emerald-500">
+      <p class="text-xs font-semibold text-slate-400">إجمالي نتائج الطلاب الفعلية</p>
+      <h3 id="kpi_total_students" class="text-3xl font-black text-white mt-2">0</h3>
+      <p class="text-xs text-emerald-400 mt-1">● بعد تنقية وتصفية السجلات</p>
+    </div>
+    <div class="card-glow rounded-2xl p-5 border-l-4 border-l-amber-500">
+      <p class="text-xs font-semibold text-slate-400">متوسط إتقان الإملاء العام</p>
+      <h3 id="kpi_avg_dict" class="text-3xl font-black text-white mt-2">0%</h3>
+      <p class="text-xs text-amber-400 mt-1">● فجوة ملحوظة في رسم الهمزات</p>
+    </div>
+    <div class="card-glow rounded-2xl p-5 border-l-4 border-l-cyan-500">
+      <p class="text-xs font-semibold text-slate-400">متوسط إتقان القراءة العام</p>
+      <h3 id="kpi_avg_read" class="text-3xl font-black text-white mt-2">0%</h3>
+      <p class="text-xs text-cyan-400 mt-1">● انطلاق متقدم وحاجة للتحليل الصوتي</p>
+    </div>
+    <div class="card-glow rounded-2xl p-5 border-l-4 border-l-rose-500">
+      <p class="text-xs font-semibold text-slate-400">الطلاب في دائرة الدعم (&lt;60%)</p>
+      <h3 id="kpi_low_count" class="text-3xl font-black text-rose-400 mt-2">0</h3>
+      <p class="text-xs text-rose-400 mt-1">● مستهدفون في الخطط العلاجية</p>
+    </div>
+  </div>
+
+  <!-- شريط التبويبات المتوهج المعتمد -->
+  <div class="max-w-7xl mx-auto mb-6 flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 p-2 rounded-2xl border border-slate-800 no-print">
+    <div class="flex flex-wrap items-center gap-2">
+      <button onclick="switchTab('students_search')" id="btn_students_search" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold text-amber-300 hover:text-white transition flex items-center gap-1.5">
+        <span>🔍</span> سجل وبحث وتعديل الطلاب
+      </button>
+      <button onclick="switchTab('primary_dict')" id="btn_primary_dict" class="tab-btn active px-5 py-2 rounded-xl text-sm font-bold text-white transition">
+        إملاء - ابتدائي
+      </button>
+      <button onclick="switchTab('primary_read')" id="btn_primary_read" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold text-slate-300 hover:text-white transition">
+        قراءة - ابتدائي
+      </button>
+      <button onclick="switchTab('med_dict')" id="btn_med_dict" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold text-slate-300 hover:text-white transition">
+        إملاء - متوسط
+      </button>
+      <button onclick="switchTab('med_read')" id="btn_med_read" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold text-slate-300 hover:text-white transition">
+        قراءة - متوسط
+      </button>
+      <button onclick="switchTab('remedial_plan')" id="btn_remedial_plan" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold text-slate-300 hover:text-white transition flex items-center gap-1.5">
+        <span>📋</span> الخطة العلاجية والتوصيات
+      </button>
+    </div>
+
+    <button onclick="resetDataCache()" title="استعادة البيانات الأصلية" class="text-xs text-slate-400 hover:text-rose-400 px-3 py-1.5 rounded-lg border border-slate-700/60 transition flex items-center gap-1">
+      <span>🔄</span> استعادة البيانات الأصلية
+    </button>
+  </div>
+
+  <!-- الحاوية الرئيسية للتبويبات -->
+  <main class="max-w-7xl mx-auto space-y-6">
+
+    <!-- تبويب 1: إملاء - ابتدائي (الرسم البياني + بطاقة الفجوات الإملائية) -->
+    <div id="tab_primary_dict" class="tab-content space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="card-glow rounded-2xl p-6 lg:col-span-2">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg text-white">متوسط نسب الإتقان لفصول المرحلة الابتدائية (إملاء)</h3>
+            <span class="text-xs text-slate-400 bg-slate-800/90 border border-slate-700 px-2.5 py-1 rounded-md font-semibold">11 فصلاً دراسياً</span>
+          </div>
+          <div class="h-72">
+            <canvas id="chartPrimaryDict"></canvas>
+          </div>
+        </div>
+
+        <div class="card-glow rounded-2xl p-6 flex flex-col justify-between">
+          <div>
+            <h3 class="font-bold text-lg text-white mb-2 flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+              أبرز الفجوات الإملائية (ابتدائي)
+            </h3>
+            <p class="text-xs text-slate-400 mb-5">المهارات ذات النسب الأدنى والتي تحتاج لتدخل سريع:</p>
+            
+            <div class="space-y-4">
+              <div>
+                <div class="flex justify-between text-xs font-bold mb-1.5">
+                  <span class="text-slate-200">الهمزة المتوسطة (الصف السادس)</span>
+                  <span class="text-rose-400 font-mono">42.2%</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2.5">
+                  <div class="bg-rose-500 h-2.5 rounded-full" style="width: 42.2%"></div>
+                </div>
+              </div>
+
+              <div>
+                <div class="flex justify-between text-xs font-bold mb-1.5">
+                  <span class="text-slate-200">الأسماء الموصولة (الصفوف 2-4)</span>
+                  <span class="text-rose-400 font-mono">47.6%</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2.5">
+                  <div class="bg-rose-500 h-2.5 rounded-full" style="width: 47.6%"></div>
+                </div>
+              </div>
+
+              <div>
+                <div class="flex justify-between text-xs font-bold mb-1.5">
+                  <span class="text-slate-200">أسماء الإشارة (الصفوف 2-4)</span>
+                  <span class="text-amber-400 font-mono">61.2%</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2.5">
+                  <div class="bg-amber-400 h-2.5 rounded-full" style="width: 61.2%"></div>
+                </div>
+              </div>
+
+              <div>
+                <div class="flex justify-between text-xs font-bold mb-1.5">
+                  <span class="text-slate-200">الهمزة المتطرفة وحروف الجر (ف، ك، ب + ال)</span>
+                  <span class="text-amber-400 font-mono">62.8%</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2.5">
+                  <div class="bg-amber-400 h-2.5 rounded-full" style="width: 62.8%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-5 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
+            <strong>نقاط القوة المتميزة:</strong> إتقان كامل للمدود واللامات الشمسية والقمرية والتاء المربوطة والمفتوحة بنسب تجاوزت 92%.
+          </div>
+        </div>
+
+      </div>
+
+      <div class="card-glow rounded-2xl p-5 overflow-hidden">
+        <h3 class="font-bold text-lg text-white mb-4">جدول مؤشرات فصول المرحلة الابتدائية (إملاء)</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-right text-slate-300">
+            <thead class="text-xs uppercase bg-slate-800/80 text-slate-400">
+              <tr>
+                <th class="py-3 px-4">الفصل</th>
+                <th class="py-3 px-4">عدد الطلاب</th>
+                <th class="py-3 px-4">متوسط الإتقان</th>
+                <th class="py-3 px-4">متقن (≥80%)</th>
+                <th class="py-3 px-4">متوسط (60-79%)</th>
+                <th class="py-3 px-4">بحاجة لدعم (&lt;60%)</th>
+                <th class="py-3 px-4">الحالة العامة</th>
+              </tr>
+            </thead>
+            <tbody id="table_pri_dict" class="divide-y divide-slate-800"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- تبويب 0: سجل وبحث وتعديل وبطاقات الطلاب -->
+    <div id="tab_students_search" class="tab-content hidden space-y-6">
+      
+      <div class="card-glow rounded-2xl p-6 border border-slate-700">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div class="lg:col-span-2">
+            <label class="block text-xs font-semibold text-slate-300 mb-1">ابحث باسم الطالب:</label>
+            <input type="text" id="filter_name" oninput="applyFilters()" placeholder="اكتب اسم الطالب..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">القسم:</label>
+            <select id="filter_stage" onchange="onStageChange()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-amber-400">
+              <option value="">جميع الأقسام</option>
+              <option value="ابتدائي">المرحلة الابتدائية</option>
+              <option value="متوسط">المرحلة المتوسطة</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">المادة:</label>
+            <select id="filter_subject" onchange="applyFilters()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-amber-400">
+              <option value="">جميع الفروع</option>
+              <option value="إملاء">إملاء</option>
+              <option value="قراءة">قراءة</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">الصف:</label>
+            <select id="filter_grade" onchange="applyFilters()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-amber-400">
+              <option value="">جميع الصفوف</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">الفصل:</label>
+            <select id="filter_class" onchange="applyFilters()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-amber-400">
+              <option value="">جميع الفصول</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="text-slate-400 font-semibold">مستوى الإتقان:</span>
+            <button onclick="setLevelFilter('')" id="lvl_btn_all" class="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-bold">الكل</button>
+            <button onclick="setLevelFilter('متفوق (متقن كلياً)')" id="lvl_btn_high" class="px-2.5 py-1 rounded-lg bg-slate-800 text-emerald-400 font-semibold">متفوق (≥80%)</button>
+            <button onclick="setLevelFilter('متوسط (متابعة)')" id="lvl_btn_med" class="px-2.5 py-1 rounded-lg bg-slate-800 text-amber-400 font-semibold">متوسط (60-79%)</button>
+            <button onclick="setLevelFilter('بحاجة لدعم')" id="lvl_btn_low" class="px-2.5 py-1 rounded-lg bg-slate-800 text-rose-400 font-semibold">بحاجة لدعم (&lt;60%)</button>
+          </div>
+          <div class="text-slate-300">النتائج المعروضة: <span id="filtered_count" class="font-extrabold text-amber-400 text-sm">0</span> طالب</div>
+        </div>
+      </div>
+
+      <!-- جدول الطلاب مع أزرار (بطاقة التشخيص + تعديل + حذف) -->
+      <div class="card-glow rounded-2xl p-5 overflow-hidden">
+        <div class="overflow-x-auto max-h-[620px] overflow-y-auto">
+          <table class="w-full text-sm text-right text-slate-200">
+            <thead class="text-xs uppercase bg-slate-800/90 text-slate-300 sticky top-0 z-10 border-b border-slate-700">
+              <tr>
+                <th class="py-3 px-3">م</th>
+                <th class="py-3 px-3">اسم الطالب</th>
+                <th class="py-3 px-3">الصف</th>
+                <th class="py-3 px-3">الفصل</th>
+                <th class="py-3 px-3">المادة</th>
+                <th class="py-3 px-2 text-center">الهمزات / الفهم</th>
+                <th class="py-3 px-2 text-center">التاءات / الانطلاق</th>
+                <th class="py-3 px-2 text-center">المدود واللامات</th>
+                <th class="py-3 px-2 text-center">الرسم / التركيب</th>
+                <th class="py-3 px-3 text-center">الإتقان</th>
+                <th class="py-3 px-3 text-center">الإخفاق</th>
+                <th class="py-3 px-3 text-center">الحالة</th>
+                <th class="py-3 px-3 text-center no-print min-w-[230px]">إجراء</th>
+              </tr>
+            </thead>
+            <tbody id="table_students_body" class="divide-y divide-slate-800/70">
+              <tr><td colspan="13" class="text-center py-10 text-slate-400">يرجى رفع ملفات الإكسل عبر الزر البنفسجي بالأعلى لتحميل وعرض الـ 800 طالب فوراً.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- تبويب 2: قراءة - ابتدائي -->
+    <div id="tab_primary_read" class="tab-content hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="card-glow rounded-2xl p-6 lg:col-span-2">
+          <h3 class="font-bold text-lg text-white mb-4">متوسط نسب إتقان القراءة لفصول المرحلة الابتدائية</h3>
+          <div class="h-72"><canvas id="chartPrimaryRead"></canvas></div>
+        </div>
+        <div class="card-glow rounded-2xl p-6">
+          <h3 class="font-bold text-lg text-white mb-2 flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-cyan-500"></span> فجوات القراءة (ابتدائي)</h3>
+          <p class="text-xs text-slate-400 mb-4">مؤشرات المهارات القرائية الحيوية:</p>
+          <div class="space-y-3 text-xs">
+            <div><div class="flex justify-between mb-1"><span>التحليل والتركيب الصوتي</span><span class="text-rose-400 font-bold font-mono">54.5%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-rose-500 h-2 rounded-full" style="width:54.5%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span>الانطلاق وسرعة القراءة السليمة</span><span class="text-amber-400 font-bold font-mono">62.0%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-amber-400 h-2 rounded-full" style="width:62%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span>التعبير الصوتي المعبر عن المعنى</span><span class="text-amber-400 font-bold font-mono">77.4%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-amber-400 h-2 rounded-full" style="width:77.4%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span>الفهم القرائي والاستيعاب المباشر</span><span class="text-emerald-400 font-bold font-mono">88.5%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-400 h-2 rounded-full" style="width:88.5%"></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card-glow rounded-2xl p-5 overflow-hidden">
+        <h3 class="font-bold text-lg text-white mb-4">جدول مؤشرات فصول المرحلة الابتدائية (قراءة)</h3>
+        <div class="overflow-x-auto"><table class="w-full text-sm text-right text-slate-300"><thead class="text-xs uppercase bg-slate-800/80 text-slate-400"><tr><th class="py-3 px-4">الفصل</th><th class="py-3 px-4">عدد الطلاب</th><th class="py-3 px-4">متوسط الإتقان</th><th class="py-3 px-4">متقن (≥80%)</th><th class="py-3 px-4">متوسط (60-79%)</th><th class="py-3 px-4">بحاجة لدعم (&lt;60%)</th><th class="py-3 px-4">التقييم</th></tr></thead><tbody id="table_pri_read" class="divide-y divide-slate-800"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- تبويب 3: إملاء - متوسط -->
+    <div id="tab_med_dict" class="tab-content hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="card-glow rounded-2xl p-6 lg:col-span-2">
+          <h3 class="font-bold text-lg text-white mb-4">متوسط نسب الإتقان لفصول المرحلة المتوسطة (إملاء)</h3>
+          <div class="h-72"><canvas id="chartMedDict"></canvas></div>
+        </div>
+        <div class="card-glow rounded-2xl p-6">
+          <h3 class="font-bold text-lg text-white mb-2 flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500"></span> فجوات الإملاء (متوسط)</h3>
+          <p class="text-xs text-slate-400 mb-4">أهم المهارات المستهدفة بالتدخل:</p>
+          <div class="space-y-3 text-xs">
+            <div><div class="flex justify-between mb-1"><span>الهمزة المتوسطة بكافة صورها</span><span class="text-rose-400 font-bold font-mono">42.8%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-rose-500 h-2 rounded-full" style="width:42.8%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span>الهمزة المتطرفة ورسمها</span><span class="text-rose-400 font-bold font-mono">45.8%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-rose-500 h-2 rounded-full" style="width:45.8%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span>واو عمرو والحروف المحذوفة</span><span class="text-amber-400 font-bold font-mono">65.0%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-amber-400 h-2 rounded-full" style="width:65%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span>همزتا الوصل والقطع</span><span class="text-emerald-400 font-bold font-mono">76.5%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-400 h-2 rounded-full" style="width:76.5%"></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card-glow rounded-2xl p-5 overflow-hidden">
+        <h3 class="font-bold text-lg text-white mb-4">جدول مؤشرات فصول المرحلة المتوسطة (إملاء)</h3>
+        <div class="overflow-x-auto"><table class="w-full text-sm text-right text-slate-300"><thead class="text-xs uppercase bg-slate-800/80 text-slate-400"><tr><th class="py-3 px-4">الفصل</th><th class="py-3 px-4">عدد الطلاب</th><th class="py-3 px-4">متوسط الإتقان</th><th class="py-3 px-4">متقن (≥80%)</th><th class="py-3 px-4">متوسط (60-79%)</th><th class="py-3 px-4">بحاجة لدعم (&lt;60%)</th><th class="py-3 px-4">التقييم</th></tr></thead><tbody id="table_med_dict" class="divide-y divide-slate-800"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- تبويب 4: قراءة - متوسط -->
+    <div id="tab_med_read" class="tab-content hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="card-glow rounded-2xl p-6 lg:col-span-2">
+          <h3 class="font-bold text-lg text-white mb-4">متوسط نسب إتقان القراءة لفصول المرحلة المتوسطة</h3>
+          <div class="h-72"><canvas id="chartMedRead"></canvas></div>
+        </div>
+        <div class="card-glow rounded-2xl p-6">
+          <h3 class="font-bold text-lg text-white mb-2 flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-teal-500"></span> مؤشرات القراءة (متوسط)</h3>
+          <p class="text-xs text-slate-400 mb-4">مقارنة فروع التقييم القرائي:</p>
+          <div class="space-y-3 text-xs">
+            <div><div class="flex justify-between mb-1"><span>التحليل والتركيب والظواهر اللغوية</span><span class="text-rose-400 font-bold font-mono">58.0%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-rose-500 h-2 rounded-full" style="width:58%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span>التعبير الصوتي وتمثيل المعنى</span><span class="text-amber-400 font-bold font-mono">74.5%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-amber-400 h-2 rounded-full" style="width:74.5%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span>القراءة الجملية والانطلاق</span><span class="text-emerald-400 font-bold font-mono">86.2%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-400 h-2 rounded-full" style="width:86.2%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span>الفهم القرائي والاستيعاب</span><span class="text-emerald-400 font-bold font-mono">92.0%</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-400 h-2 rounded-full" style="width:92%"></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card-glow rounded-2xl p-5 overflow-hidden">
+        <h3 class="font-bold text-lg text-white mb-4">جدول مؤشرات فصول المرحلة المتوسطة (قراءة)</h3>
+        <div class="overflow-x-auto"><table class="w-full text-sm text-right text-slate-300"><thead class="text-xs uppercase bg-slate-800/80 text-slate-400"><tr><th class="py-3 px-4">الفصل</th><th class="py-3 px-4">عدد الطلاب</th><th class="py-3 px-4">متوسط الإتقان</th><th class="py-3 px-4">متقن (≥80%)</th><th class="py-3 px-4">متوسط (60-79%)</th><th class="py-3 px-4">بحاجة لدعم (&lt;60%)</th><th class="py-3 px-4">التقييم</th></tr></thead><tbody id="table_med_read" class="divide-y divide-slate-800"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- تبويب 5: الخطة العلاجية والتوصيات -->
+    <div id="tab_remedial_plan" class="tab-content hidden space-y-6">
+      <div class="card-glow rounded-2xl p-6 border-l-4 border-l-amber-500">
+        <h3 class="text-xl font-bold text-white mb-2">📋 الخطة الإجرائية والتوصيات الإشرافية المعتمدة</h3>
+        <p class="text-slate-300 text-sm leading-relaxed">
+          بناءً على نتائج تحليل الاختبارات التشخيصية لمادتي الإملاء والقراءة بالمرحلتين الابتدائية والمتوسطة، اعتمد مشرف اللغة العربية <strong>أ/ صبحي الرفاعي</strong> حزمة التدخلات العلاجية المركزة لمعالجة الفجوات المهارية خلال الأسابيع القادمة.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="card-glow rounded-2xl p-5">
+          <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold mb-3">1</div>
+          <h4 class="font-bold text-white mb-2">علاج فجوة الهمزات (متوسطة ومتطرفة)</h4>
+          <ul class="text-xs text-slate-300 space-y-2 list-disc list-inside leading-relaxed">
+            <li>تطبيق ميزان الحركات وقوة الحركة (كسرة، ضمة، فتحة، سكون) في أول 7 دقائق من كل حصة.</li>
+            <li>جداول وبطاقات مقارنة لرسم الهمزة المتطرفة حسب حركة ما قبلها.</li>
+            <li>اختبارات أسبوعية قصيرة لقياس الأثر.</li>
+          </ul>
+        </div>
+        <div class="card-glow rounded-2xl p-5">
+          <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold mb-3">2</div>
+          <h4 class="font-bold text-white mb-2">التحليل والتركيب الصوتي</h4>
+          <ul class="text-xs text-slate-300 space-y-2 list-disc list-inside leading-relaxed">
+            <li>تدريب الطلاب المتعثرين على التقطيع الصوتي (ساكن، مد، مشدد).</li>
+            <li>استخدام البطاقات الملونة لتمثيل المقاطع قبل الكتابة.</li>
+            <li>استراتيجية القراءة الترديدية والنبر الصوتي المعبر.</li>
+          </ul>
+        </div>
+        <div class="card-glow rounded-2xl p-5">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold mb-3">3</div>
+          <h4 class="font-bold text-white mb-2">الرسم الإملائي للكلمات الشائعة</h4>
+          <ul class="text-xs text-slate-300 space-y-2 list-disc list-inside leading-relaxed">
+            <li>قائمة الكلمات المحذوفة ألفها كتابة (هذا، هذه، لكن، الرحمن).</li>
+            <li>التفريق بين الأسماء الموصولة بلام واحدة وبلامين.</li>
+            <li>التفريق بين واو عمرو وواو الجماعة.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- نافذة بطاقة التشخيص الفردية الشاملة للطباعة والمعاينة -->
+  <div id="diagnostic_card_modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div id="card_content_box" class="bg-white text-slate-800 rounded-3xl p-6 md:p-8 w-full max-w-2xl shadow-2xl max-h-[92vh] overflow-y-auto border border-slate-200">
+      
+      <div class="flex items-center justify-between border-b border-slate-200 pb-4 mb-5">
+        <div class="flex items-center gap-4">
+          <img src="logo.jpg" onerror="this.src='https://placehold.co/180x60/004d3d/ffffff?text=%D9%85%D8%AF%D8%A7%D8%B1%D8%B3+%D8%A7%D9%84%D8%A8%D9%8A%D8%A7%D8%B1%D9%82'" alt="شعار مدارس البيارق" class="h-14 w-auto max-w-[170px] object-contain">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900">مدارس البيارق الأهلية</h2>
+            <p class="text-xs text-slate-500">بطاقة التقرير التشخيصي الفردي لمادة اللغة العربية</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 no-print">
+          <button onclick="window.print()" class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-300">🖨 طباعة البطاقة</button>
+          <button onclick="closeDiagnosticCard()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold px-2">&times;</button>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs mb-5">
+        <div><span class="text-slate-500 block mb-0.5">اسم الطالب:</span><strong id="card_student_name" class="text-sm font-bold text-slate-900">--</strong></div>
+        <div><span class="text-slate-500 block mb-0.5">الصف والفصل:</span><strong id="card_student_class" class="text-sm font-bold text-slate-800">--</strong></div>
+        <div><span class="text-slate-500 block mb-0.5">المادة المقيّمة:</span><strong id="card_student_subject" class="text-sm font-bold text-emerald-700">--</strong></div>
+        <div><span class="text-slate-500 block mb-0.5">المستوى:</span><span id="card_student_badge" class="inline-block font-bold">--</span></div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 mb-5">
+        <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center">
+          <span class="text-xs text-emerald-700 font-semibold block">نسبة الإتقان المحققة</span>
+          <span id="card_pct_pass" class="text-3xl font-black text-emerald-600 mt-1 block font-mono">0%</span>
+        </div>
+        <div class="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-center">
+          <span class="text-xs text-rose-700 font-semibold block">نسبة الإخفاق والفجوة</span>
+          <span id="card_pct_fail" class="text-3xl font-black text-rose-600 mt-1 block font-mono">0%</span>
+        </div>
+      </div>
+
+      <div class="mb-5">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">تفصيل حالة المهارات الفردية المقيسة:</h4>
+          <span id="card_skills_count" class="text-xs font-semibold text-slate-500"></span>
+        </div>
+        <div id="card_skills_matrix" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto p-1 border border-slate-100 rounded-2xl"></div>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs mb-5">
+        <strong class="text-amber-900 block font-bold mb-1">💡 التوصية الإشرافية والتدخل المعتمد:</strong>
+        <p id="card_recommendation" class="text-amber-800 leading-relaxed">--</p>
+      </div>
+
+      <div class="pt-4 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+        <div><span>مشرف المادة ومعد التقرير: </span><strong class="text-slate-800">أ/ صبحي الرفاعي</strong></div>
+        <div><span>إدارة الإشراف التربوي - مدارس البيارق الأهلية</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- نافذة تعديل / إضافة طالب -->
+  <div id="student_modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+        <h3 id="modal_title" class="text-lg font-bold text-white flex items-center gap-2"><span>✏️</span> تعديل بيانات الطالب</h3>
+        <button onclick="closeStudentModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+      </div>
+
+      <input type="hidden" id="modal_student_id">
+
+      <div class="space-y-4 text-sm">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">اسم الطالب:</label>
+          <input type="text" id="modal_name" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-400">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">القسم:</label>
+            <select id="modal_stage" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-amber-400">
+              <option value="ابتدائي">ابتدائي</option>
+              <option value="متوسط">متوسط</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">المادة:</label>
+            <select id="modal_subject" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-amber-400">
+              <option value="إملاء">إملاء</option>
+              <option value="قراءة">قراءة</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">الصف:</label>
+            <input type="text" id="modal_grade" placeholder="مثال: الثاني الابتدائي" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-amber-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">الفصل:</label>
+            <input type="text" id="modal_class" placeholder="مثال: 2ب1" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-amber-400">
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">نسبة الإتقان %:</label>
+            <input type="number" step="0.1" min="0" max="100" id="modal_pct" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-amber-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">المهارات المتقنة:</label>
+            <input type="number" min="0" id="modal_passes" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-amber-400">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">المهارات المتعثرة:</label>
+            <input type="number" min="0" id="modal_fails" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-amber-400">
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end gap-3 pt-3 border-t border-slate-800">
+        <button onclick="closeStudentModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">إلغاء</button>
+        <button onclick="saveStudentModal()" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-lg">حفظ البيانات</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  let allStudentsData = [];
+  let selectedLevel = '';
+
+  const gradeMapPri = {
+    '1-2': ['الثاني الابتدائي', '2ب1'], '2-2': ['الثاني الابتدائي', '2ب2'],
+    '1-3': ['الثالث الابتدائي', '3ب1'], '2-3': ['الثالث الابتدائي', '3ب2'],
+    '1-4': ['الرابع الابتدائي', '4ب1'], '2-4': ['الرابع الابتدائي', '4ب2'], '3-4': ['الرابع الابتدائي', '4ب3'],
+    '1-5': ['الخامس الابتدائي', '5ب1'], '2-5': ['الخامس الابتدائي', '5ب2'], '3-5': ['الخامس الابتدائي', '5ب3'],
+    '1-6': ['السادس الابتدائي', '6ب1'], '2-6': ['السادس الابتدائي', '6ب2']
+  };
+
+  const gradeMapMed = {
+    '1م1': ['الأول المتوسط', '1م1'], 'اول م1': ['الأول المتوسط', '1م1'],
+    '1م2': ['الأول المتوسط', '1م2'], 'اول م2': ['الأول المتوسط', '1م2'],
+    '2م1': ['الثاني المتوسط', '2م1'], 'ثان م1': ['الثاني المتوسط', '2م1'],
+    '2م2': ['الثاني المتوسط', '2م2'], 'ثان م2': ['الثاني المتوسط', '2م2'],
+    '2م3': ['الثاني المتوسط', '2م3'], 'ثان م3': ['الثاني المتوسط', '2م3'],
+    '2م4': ['الثاني المتوسط', '2م4'], 'ثان م4': ['الثاني المتوسط', '2م4'],
+    '3م1': ['الثالث المتوسط', '3م1'], 'ثالث م1': ['الثالث المتوسط', '3م1'],
+    '3م2': ['الثالث المتوسط', '3م2'], 'ثالث م2': ['الثالث المتوسط', '3م2'],
+    '3م3': ['الثالث المتوسط', '3م3'], 'ثالث م3': ['الثالث المتوسط', '3م3'],
+    '3م4': ['الثالث المتوسط', '3م4'], 'ثالث م 4': ['الثالث المتوسط', '3م4']
+  };
+
+  try {
+    const saved = localStorage.getItem('bayariq_arabic_diag_v6');
+    if (saved) allStudentsData = JSON.parse(saved);
+  } catch(e) {}
+
+  function persistData() {
+    try {
+      localStorage.setItem('bayariq_arabic_diag_v6', JSON.stringify(allStudentsData));
+    } catch(e) {}
+    updateOverallKPIs();
+    populateDropdowns();
+    applyFilters();
+    recalculateClassSummaries();
+  }
+
+  function saveAndNotify() {
+    persistData();
+    const toast = document.getElementById('save_toast');
+    if (toast) {
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+  }
+
+  function resetDataCache() {
+    if (confirm("هل تريد مسح البيانات المخزنة مؤقتاً؟")) {
+      localStorage.removeItem('bayariq_arabic_diag_v6');
+      allStudentsData = [];
+      persistData();
+      alert("تمت استعادة التهيئة.");
+    }
+  }
+
+  function loadExcelFiles(event) {
+    const files = Array.from(event.target.files);
+    if (!files.length) return;
+
+    let loadedCount = 0;
+    allStudentsData = [];
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      const isPri = file.name.includes('ابتدائي');
+      const isDict = file.name.includes('إملاء') || file.name.includes('املاء');
+      const stage = isPri ? 'ابتدائي' : 'متوسط';
+      const subject = isDict ? 'إملاء' : 'قراءة';
+      const gradeMap = isPri ? gradeMapPri : gradeMapMed;
+
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+
+        workbook.SheetNames.forEach(sheetName => {
+          const sClean = sheetName.trim();
+          if (!gradeMap[sClean] || sClean.includes('مقارنة') || sClean === 'ورقة') return;
+          const [gradeName, displayClass] = gradeMap[sClean];
+          const sheet = workbook.Sheets[sheetName];
+          const jsonSheet = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
+
+          let skillRowIdx = -1;
+          for (let r = 0; r < jsonSheet.length; r++) {
+            if (jsonSheet[r].some(cell => String(cell).includes('المهارات'))) {
+              skillRowIdx = r;
+              break;
+            }
+          }
+          if (skillRowIdx === -1) return;
+
+          const subHeaderIdx = skillRowIdx + 1;
+          let failCol = -1, passCol = -1;
+          for (let c = 0; c < (jsonSheet[skillRowIdx] || []).length; c++) {
+            const h1 = String(jsonSheet[skillRowIdx][c] || '');
+            const h2 = String(jsonSheet[subHeaderIdx] ? jsonSheet[subHeaderIdx][c] || '' : '');
+            if ((h1.includes('إخفاق') || h2.includes('إخفاق')) && failCol === -1) failCol = c;
+            if ((h1.includes('إتقان') || h2.includes('إتقان')) && passCol === -1) passCol = c;
+          }
+
+          const endSkillCol = failCol !== -1 ? failCol : (jsonSheet[skillRowIdx].length - 4);
+          const skillCols = [];
+          for (let c = 5; c < endSkillCol; c++) {
+            const sName1 = String(jsonSheet[skillRowIdx][c] || '').trim();
+            const sName2 = jsonSheet[subHeaderIdx] ? String(jsonSheet[subHeaderIdx][c] || '').trim() : '';
+            const skillName = sName2 && sName2 !== 'الطالب' ? (sName1 ? `${sName1} - ${sName2}` : sName2) : sName1;
+            if (skillName && !['غياب', 'حضور', 'عدد المهارات', 'مهارات لغوية'].includes(skillName)) {
+              skillCols.push({ col: c, name: skillName });
+            }
+          }
+
+          for (let r = subHeaderIdx + 1; r < jsonSheet.length; r++) {
+            const row = jsonSheet[r];
+            const num = parseFloat(row[0]);
+            const name = String(row[1] || '').trim();
+            if (!isNaN(num) && name && !name.includes('معلم') && !name.includes('المجموع') && !name.includes('نسبة')) {
+              let fails = 0, passes = 0;
+              const skillsDict = {};
+              skillCols.forEach(sc => {
+                const cellVal = row[sc.col];
+                const isFailed = (cellVal === 1 || cellVal === '1' || cellVal === 1.0);
+                skillsDict[sc.name] = !isFailed;
+                if (isFailed) fails++; else passes++;
+              });
+
+              const totalSkills = skillCols.length || 1;
+              const pct = Math.round((passes / totalSkills) * 1000) / 10;
+              const status = pct >= 80 ? 'متفوق (متقن كلياً)' : (pct >= 60 ? 'متوسط (متابعة)' : 'بحاجة لدعم');
+
+              allStudentsData.push({
+                id: allStudentsData.length + 1,
+                name: name,
+                stage: stage,
+                grade: gradeName,
+                class: displayClass,
+                display_class: displayClass,
+                subject: subject,
+                pct: pct,
+                fail_pct: Math.round((100 - pct) * 10) / 10,
+                passes: passes,
+                fails: fails,
+                status: status,
+                skills: skillsDict
+              });
+            }
+          }
+        });
+
+        loadedCount++;
+        if (loadedCount === files.length) {
+          persistData();
+          saveAndNotify();
+          alert(`تم استخراج وقراءة ${allStudentsData.length} طالب بنجاح!`);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function updateOverallKPIs() {
+    document.getElementById('kpi_total_students').textContent = allStudentsData.length;
+    const dicts = allStudentsData.filter(s => s.subject === 'إملاء');
+    const reads = allStudentsData.filter(s => s.subject === 'قراءة');
+    const avgDict = dicts.length ? (dicts.reduce((a, b) => a + b.pct, 0) / dicts.length).toFixed(1) : 0;
+    const avgRead = reads.length ? (reads.reduce((a, b) => a + b.pct, 0) / reads.length).toFixed(1) : 0;
+    document.getElementById('kpi_avg_dict').textContent = avgDict + '%';
+    document.getElementById('kpi_avg_read').textContent = avgRead + '%';
+    document.getElementById('kpi_low_count').textContent = allStudentsData.filter(s => s.pct < 60).length;
+  }
+
+  function applyFilters() {
+    const nameQ = document.getElementById('filter_name').value.trim().toLowerCase();
+    const stage = document.getElementById('filter_stage').value;
+    const subject = document.getElementById('filter_subject').value;
+    const grade = document.getElementById('filter_grade').value;
+    const classVal = document.getElementById('filter_class').value;
+
+    const filtered = allStudentsData.filter(s => {
+      if (nameQ && !s.name.toLowerCase().includes(nameQ)) return false;
+      if (stage && s.stage !== stage) return false;
+      if (subject && s.subject !== subject) return false;
+      if (grade && s.grade !== grade) return false;
+      if (classVal && s.display_class !== classVal) return false;
+      if (selectedLevel && s.status !== selectedLevel) return false;
+      return true;
+    });
+
+    document.getElementById('filtered_count').textContent = filtered.length;
+    const tbody = document.getElementById('table_students_body');
+    tbody.innerHTML = '';
+
+    if (!filtered.length) {
+      tbody.innerHTML = '<tr><td colspan="13" class="text-center py-8 text-slate-400">لا توجد نتائج مطابقة لمعايير البحث.</td></tr>';
+      return;
+    }
+
+    filtered.forEach((st, idx) => {
+      const tr = document.createElement('tr');
+      tr.className = "hover:bg-slate-800/60 transition border-b border-slate-800/50";
+      const sKeys = Object.keys(st.skills || {});
+      const sk1 = sKeys[0] ? st.skills[sKeys[0]] : true;
+      const sk2 = sKeys[1] ? st.skills[sKeys[1]] : true;
+      const sk3 = sKeys[2] ? st.skills[sKeys[2]] : true;
+      const sk4 = sKeys[3] ? st.skills[sKeys[3]] : true;
+
+      const badge = st.pct >= 80 ? '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">متفوق (متقن كلياً)</span>' :
+                    (st.pct >= 60 ? '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/25">متوسط (متابعة)</span>' :
+                    '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/25">بحاجة لدعم</span>');
+
+      const safeName = st.name.replace(/'/g, "\\'");
+
+      tr.innerHTML = `
+        <td class="py-3 px-3 font-mono text-xs text-slate-500">${idx + 1}</td>
+        <td class="py-3 px-3 font-bold text-white">${st.name}</td>
+        <td class="py-3 px-3 text-xs text-slate-400">${st.grade}</td>
+        <td class="py-3 px-3 text-xs font-bold text-amber-300">${st.display_class}</td>
+        <td class="py-3 px-3 text-xs font-semibold ${st.subject === 'إملاء' ? 'text-amber-400' : 'text-cyan-400'}">${st.subject}</td>
+        <td class="py-3 px-2 text-center">${sk1 ? '<span class="text-emerald-400 font-bold">✓</span>' : '<span class="text-rose-400 font-bold">✕</span>'}</td>
+        <td class="py-3 px-2 text-center">${sk2 ? '<span class="text-emerald-400 font-bold">✓</span>' : '<span class="text-rose-400 font-bold">✕</span>'}</td>
+        <td class="py-3 px-2 text-center">${sk3 ? '<span class="text-emerald-400 font-bold">✓</span>' : '<span class="text-rose-400 font-bold">✕</span>'}</td>
+        <td class="py-3 px-2 text-center">${sk4 ? '<span class="text-emerald-400 font-bold">✓</span>' : '<span class="text-rose-400 font-bold">✕</span>'}</td>
+        <td class="py-3 px-3 text-center font-extrabold text-white font-mono">${st.pct}%</td>
+        <td class="py-3 px-3 text-center font-extrabold font-mono ${st.fail_pct > 0 ? 'text-rose-400' : 'text-slate-500'}">${st.fail_pct}%</td>
+        <td class="py-3 px-3 text-center">${badge}</td>
+        <td class="py-3 px-3 text-center no-print">
+          <div class="flex items-center justify-center gap-1.5 flex-nowrap">
+            <button onclick="showDiagnosticCard(${st.id})" title="عرض بطاقة التشخيص" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold border border-amber-400/30 flex items-center gap-1 transition">
+              <span>👁</span> بطاقة التشخيص
+            </button>
+            <button onclick="openStudentModal(${st.id})" title="تعديل الطالب" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 text-xs font-bold border border-amber-500/30 flex items-center gap-1 transition">
+              <span>✏️</span> تعديل
+            </button>
+            <button onclick="deleteStudent(${st.id}, '${safeName}')" title="حذف الطالب" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-rose-600 hover:text-white text-rose-400 text-xs font-bold border border-rose-500/30 flex items-center gap-1 transition">
+              <span>🗑️</span> حذف
+            </button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function showDiagnosticCard(id) {
+    const st = allStudentsData.find(s => s.id === id);
+    if (!st) return;
+    document.getElementById('card_student_name').textContent = st.name;
+    document.getElementById('card_student_class').textContent = `${st.grade} - فصل (${st.display_class})`;
+    document.getElementById('card_student_subject').textContent = st.subject;
+    document.getElementById('card_pct_pass').textContent = `${st.pct}%`;
+    document.getElementById('card_pct_fail').textContent = `${st.fail_pct}%`;
+    document.getElementById('card_student_badge').textContent = st.status;
+
+    const matrix = document.getElementById('card_skills_matrix');
+    matrix.innerHTML = '';
+    const entries = Object.entries(st.skills || {});
+    document.getElementById('card_skills_count').textContent = `(${entries.length} مهارة مقيسة)`;
+    entries.forEach(([sk, passed], idx) => {
+      const div = document.createElement('div');
+      div.className = "flex items-center justify-between p-2 rounded-xl text-xs " + (passed ? "bg-emerald-50 border border-emerald-200" : "bg-rose-50 border border-rose-200");
+      div.innerHTML = `<span>${idx + 1}. ${sk}</span><strong class="${passed ? 'text-emerald-700' : 'text-rose-600'}">${passed ? '✔ متقن' : '✖ متعثر'}</strong>`;
+      matrix.appendChild(div);
+    });
+
+    document.getElementById('card_recommendation').textContent = st.pct >= 80 ? 'إشراك الطالب في البرامج والمسابقات الإثرائية لتعزيز تفوقه.' :
+      (st.pct >= 60 ? 'التركيز على المهارات المتعثرة المحددة باللون الأحمر خلال الحصص الدراسية.' : 'إدراج الطالب عاجلاً في برنامج الخطة العلاجية والتدريب المكثف على الفجوات المهارية.');
+
+    document.getElementById('diagnostic_card_modal').classList.remove('hidden');
+  }
+
+  function closeDiagnosticCard() {
+    document.getElementById('diagnostic_card_modal').classList.add('hidden');
+  }
+
+  function openStudentModal(id = null) {
+    if (id) {
+      const st = allStudentsData.find(s => s.id === id);
+      if (!st) return;
+      document.getElementById('modal_title').innerHTML = '<span>✏️</span> تعديل وتصحيح بيانات الطالب';
+      document.getElementById('modal_student_id').value = st.id;
+      document.getElementById('modal_name').value = st.name;
+      document.getElementById('modal_stage').value = st.stage;
+      document.getElementById('modal_subject').value = st.subject;
+      document.getElementById('modal_grade').value = st.grade;
+      document.getElementById('modal_class').value = st.display_class;
+      document.getElementById('modal_pct').value = st.pct;
+      document.getElementById('modal_passes').value = st.passes;
+      document.getElementById('modal_fails').value = st.fails;
+    } else {
+      document.getElementById('modal_title').innerHTML = '<span>➕</span> إضافة طالب جديد إلى السجل';
+      document.getElementById('modal_student_id').value = '';
+      document.getElementById('modal_name').value = '';
+      document.getElementById('modal_stage').value = 'ابتدائي';
+      document.getElementById('modal_subject').value = 'إملاء';
+      document.getElementById('modal_grade').value = 'الثاني الابتدائي';
+      document.getElementById('modal_class').value = '2ب1';
+      document.getElementById('modal_pct').value = '100';
+      document.getElementById('modal_passes').value = '6';
+      document.getElementById('modal_fails').value = '0';
+    }
+    document.getElementById('student_modal').classList.remove('hidden');
+  }
+
+  function closeStudentModal() {
+    document.getElementById('student_modal').classList.add('hidden');
+  }
+
+  function saveStudentModal() {
+    const idVal = document.getElementById('modal_student_id').value;
+    const name = document.getElementById('modal_name').value.trim();
+    if (!name) { alert("يرجى إدخال اسم الطالب!"); return; }
+
+    const stage = document.getElementById('modal_stage').value;
+    const subject = document.getElementById('modal_subject').value;
+    const grade = document.getElementById('modal_grade').value.trim();
+    const displayClass = document.getElementById('modal_class').value.trim();
+    const pct = parseFloat(document.getElementById('modal_pct').value) || 0;
+    const passes = parseInt(document.getElementById('modal_passes').value) || 0;
+    const fails = parseInt(document.getElementById('modal_fails').value) || 0;
+    const status = pct >= 80 ? 'متفوق (متقن كلياً)' : (pct >= 60 ? 'متوسط (متابعة)' : 'بحاجة لدعم');
+
+    if (idVal) {
+      const target = allStudentsData.find(s => s.id === parseInt(idVal));
+      if (target) {
+        target.name = name; target.stage = stage; target.subject = subject;
+        target.grade = grade; target.display_class = displayClass; target.class = displayClass;
+        target.pct = pct; target.fail_pct = Math.round((100 - pct) * 10) / 10;
+        target.passes = passes; target.fails = fails; target.status = status;
+      }
+    } else {
+      const newId = (allStudentsData.reduce((max, s) => s.id > max ? s.id : max, 0) || 0) + 1;
+      allStudentsData.unshift({
+        id: newId, name: name, stage: stage, grade: grade,
+        class: displayClass, display_class: displayClass, subject: subject,
+        pct: pct, fail_pct: Math.round((100 - pct) * 10) / 10,
+        passes: passes, fails: fails, status: status, skills: {}
+      });
+    }
+
+    closeStudentModal();
+    persistData();
+    saveAndNotify();
+  }
+
+  function deleteStudent(id, name) {
+    if (confirm(`هل أنت متأكد من حذف الطالب: "${name}" من السجل؟`)) {
+      allStudentsData = allStudentsData.filter(s => s.id !== id);
+      persistData();
+      saveAndNotify();
+    }
+  }
+
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    const activeTab = document.getElementById('tab_' + tabId);
+    if (activeTab) activeTab.classList.remove('hidden');
+    const activeBtn = document.getElementById('btn_' + tabId);
+    if (activeBtn) activeBtn.classList.add('active');
+  }
+
+  let chartPriDictInst = null, chartPriReadInst = null, chartMedDictInst = null, chartMedReadInst = null;
+
+  function recalculateClassSummaries() {
+    function aggregateGroup(stage, subject) {
+      const subset = allStudentsData.filter(s => s.stage === stage && s.subject === subject);
+      const classes = [...new Set(subset.map(s => s.display_class || s.class))];
+      return classes.map(cName => {
+        const cStudents = subset.filter(s => (s.display_class || s.class) === cName);
+        const count = cStudents.length;
+        const avg = count ? (cStudents.reduce((a, b) => a + b.pct, 0) / count).toFixed(1) : 0;
+        const high = cStudents.filter(s => s.pct >= 80).length;
+        const med = cStudents.filter(s => s.pct >= 60 && s.pct < 80).length;
+        const low = cStudents.filter(s => s.pct < 60).length;
+        return { name: cName, count, avg: parseFloat(avg), high, med, low };
+      });
+    }
+
+    const priDictData = aggregateGroup('ابتدائي', 'إملاء');
+    const priReadData = aggregateGroup('ابتدائي', 'قراءة');
+    const medDictData = aggregateGroup('متوسط', 'إملاء');
+    const medReadData = aggregateGroup('متوسط', 'قراءة');
+
+    renderSummaryTable('table_pri_dict', priDictData);
+    renderSummaryTable('table_pri_read', priReadData);
+    renderSummaryTable('table_med_dict', medDictData);
+    renderSummaryTable('table_med_read', medReadData);
+
+    updateChart('chartPrimaryDict', priDictData, '#f59e0b', 'chartPriDictInst');
+    updateChart('chartPrimaryRead', priReadData, '#06b6d4', 'chartPriReadInst');
+    updateChart('chartMedDict', medDictData, '#10b981', 'chartMedDictInst');
+    updateChart('chartMedRead', medReadData, '#14b8a6', 'chartMedReadInst');
+  }
+
+  function renderSummaryTable(tbodyId, data) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    data.forEach(row => {
+      const badge = row.avg >= 75 ? '<span class="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400 font-bold">متميز / جيد جداً</span>' :
+                    (row.avg >= 65 ? '<span class="px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-400 font-bold">متوسط / مستقر</span>' :
+                    '<span class="px-2 py-0.5 rounded text-xs bg-rose-500/20 text-rose-400 font-bold">يحتاج متابعة</span>');
+      const tr = document.createElement('tr');
+      tr.className = "hover:bg-slate-800/40 transition";
+      tr.innerHTML = `
+        <td class="py-3 px-4 font-bold text-white">${row.name}</td>
+        <td class="py-3 px-4">${row.count}</td>
+        <td class="py-3 px-4 font-extrabold text-amber-400 font-mono">${row.avg}%</td>
+        <td class="py-3 px-4 text-emerald-400 font-semibold">${row.high}</td>
+        <td class="py-3 px-4 text-slate-300">${row.med}</td>
+        <td class="py-3 px-4 text-rose-400 font-bold">${row.low}</td>
+        <td class="py-3 px-4">${badge}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function updateChart(canvasId, data, color, instName) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (window[instName]) window[instName].destroy();
+
+    window[instName] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: data.map(d => d.name),
+        datasets: [{
+          label: 'متوسط الإتقان %',
+          data: data.map(d => d.avg),
+          backgroundColor: color + 'dd',
+          borderColor: color,
+          borderWidth: 1.5,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { min: 40, max: 100, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' } },
+          x: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { family: 'Cairo' } } }
+        }
+      }
+    });
+  }
+
+  function setLevelFilter(lvl) { selectedLevel = lvl; applyFilters(); }
+  function populateDropdowns() {
+    const grades = [...new Set(allStudentsData.map(s => s.grade).filter(Boolean))];
+    const classes = [...new Set(allStudentsData.map(s => s.display_class).filter(Boolean))];
+    const gSelect = document.getElementById('filter_grade');
+    const cSelect = document.getElementById('filter_class');
+    gSelect.innerHTML = '<option value="">جميع الصفوف</option>' + grades.map(g => `<option value="${g}">${g}</option>`).join('');
+    cSelect.innerHTML = '<option value="">جميع الفصول</option>' + classes.map(c => `<option value="${c}">${c}</option>`).join('');
+  }
+  function onStageChange() { applyFilters(); }
+
+  function exportCSV() {
+    let csv = "data:text/csv;charset=utf-8,\uFEFFم,اسم الطالب,المرحلة,الصف,الفصل,المادة,نسبة الإتقان %,نسبة الإخفاق %,الحالة\n";
+    allStudentsData.forEach((s, i) => {
+      csv += `${i+1},"${s.name}",${s.stage},"${s.grade}",${s.display_class},${s.subject},${s.pct},${s.fail_pct},"${s.status}"\n`;
+    });
+    const link = document.createElement("a");
+    link.href = encodeURI(csv);
+    link.download = "سجل_نتائج_طلاب_اللغة_العربية_البيارق.csv";
+    link.click();
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    if (allStudentsData.length) {
+      persistData();
+    }
+  });
+</script>
+</body>
+</html>
